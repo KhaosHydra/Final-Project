@@ -168,8 +168,8 @@ void loopMorseCodeLight() {
 // Variables -------------------------------------------------------------------
 
 // Pins
-const int SevSegCLK = 24; // CLK pin for 7-segment display
-const int SevSegDIO = 23; // DIO pin for 7-segment display
+const int SevSegCLK = 14; // CLK pin for 7-segment display
+const int SevSegDIO = 13; // DIO pin for 7-segment display
 const int rotaryEncoderA = 35; // CLK pin for rotary encoder
 const int rotaryEncoderB = 34; // DT pin for rotary encoder
 const int rotaryEncoderButton = 36; // Button pin for rotary encoder
@@ -355,6 +355,8 @@ void loopMorseCodeDisplay() {
 ================================================================================
 */
 
+
+
 /*
 ================================================================================
                                 Maze Module
@@ -382,7 +384,9 @@ unsigned long previousTimerTime = 0;
 
 bool startGame = false;
 
-int countdownTime = 5 * 60; // Countdown time in seconds (x minutes)
+const int constCountdownTime = 5 * 60; // Countdown time in seconds (x minutes)
+
+int countdownTime = constCountdownTime; // Countdown time in seconds (x minutes)
 
 // Create a display object of type TM1637Display
 TM1637Display displayTimer(timerCLK, timerDIO);
@@ -446,7 +450,7 @@ void loopStartButton() {
       setupMorseCodeLight();
       setupMorseCodeDisplay();
       setupTimer();
-      countdownTime = 5 * 60; // Reset countdown time
+      countdownTime = constCountdownTime; // Reset countdown time
       previousTimerTime = 0; // Reset timer
 
       // Reset module flags
@@ -463,25 +467,115 @@ void loopStartButton() {
   }
   previousStateStartButton = startButton;
 }
-
 /*
 ================================================================================
                                 End Game
 ================================================================================
 */
 
-void loopEndGame() {
-  if (morseCodeModule && drumpadModule && mazeModule) {
-    // Game is complete
-    startGame = false;
-  }
+// Variables -------------------------------------------------------------------
 
-  else if (countdownTime == 0) {
-    // Game over
+// Pins
+const int earthExplodeMotorIn3 = 27; // Motor control pin 1
+const int earthExplodeMotorIn4 = 33; // Motor control pin 2
 
-    startGame = false;
-  }
+// State Variables
+bool runMotorCycle = false; // Flag to control when the cycle runs
+
+// Timings (Adjustable)
+unsigned long earthOpenDuration = 1000; // Duration to open the flower (ms)
+unsigned long earthHoldDuration = 5000; // Duration to hold the flower open (ms)
+unsigned long earthCloseDuration = 1000; // Duration to close the flower (ms)
+
+// Functions -------------------------------------------------------------------
+
+void handleMotorCycle() {
+    static unsigned long lastActionTime = 0; // Tracks the time of the last action
+    static int step = 0; // Tracks the current step in the cycle
+    static bool cycleRunning = false; // Tracks if the cycle is currently running
+
+    if (!runMotorCycle) {
+        // Reset the state to ensure the motor stops and is ready for the next call
+        if (cycleRunning) {
+            step = 0;
+            digitalWrite(earthExplodeMotorIn3, LOW);
+            digitalWrite(earthExplodeMotorIn4, LOW); // Ensure motor is stopped
+            cycleRunning = false;
+        }
+        return; // Do nothing unless runMotorCycle is true
+    }
+
+    // Proceed with the cycle
+    unsigned long currentTime = millis();
+
+    if (!cycleRunning) {
+        // Start the cycle
+        cycleRunning = true;
+        lastActionTime = currentTime;
+    }
+
+    switch (step) {
+        case 0: // Step 0: Spin motor forward for 1 second
+            digitalWrite(earthExplodeMotorIn3, HIGH);
+            digitalWrite(earthExplodeMotorIn4, LOW);
+            if (currentTime - lastActionTime >= 500) { // Check if 1 second has elapsed
+                digitalWrite(earthExplodeMotorIn3, LOW);
+                digitalWrite(earthExplodeMotorIn4, LOW); // Stop motor
+                lastActionTime = currentTime; // Update the last action time
+                step = 1; // Move to the next step
+            }
+            break;
+
+        case 1: // Step 1: Pause for 5 seconds
+            if (currentTime - lastActionTime >= 5000) { // Check if 5 seconds have elapsed
+                lastActionTime = currentTime; // Update the last action time
+                step = 2; // Move to the next step
+            }
+            break;
+
+        case 2: // Step 2: Spin motor backward for 900ms
+            digitalWrite(earthExplodeMotorIn3, LOW);
+            digitalWrite(earthExplodeMotorIn4, HIGH);
+            if (currentTime - lastActionTime >= 900) { // Check if 900ms have elapsed
+                digitalWrite(earthExplodeMotorIn3, LOW);
+                digitalWrite(earthExplodeMotorIn4, LOW); // Stop motor
+                lastActionTime = currentTime; // Update the last action time
+                step = 3; // Move to the next step
+            }
+            break;
+
+        case 3: // Step 3: Cycle complete, stop and reset
+            digitalWrite(earthExplodeMotorIn3, LOW);
+            digitalWrite(earthExplodeMotorIn4, LOW); // Ensure motor is stopped
+            runMotorCycle = false; // Mark the cycle as done
+            cycleRunning = false; // Reset the cycle flag
+            step = 0; // Reset steps for the next call
+            break;
+
+        default:
+            step = 0; // Reset in case of an invalid step
+            break;
+    }
 }
+
+void setupEndGame() {
+    pinMode(earthExplodeMotorIn3, OUTPUT);
+    pinMode(earthExplodeMotorIn4, OUTPUT);
+}
+
+void loopEndGame() {
+    if (morseCodeModule && drumpadModule && mazeModule) {
+        // Game is complete
+        startGame = false;
+
+    } else if (countdownTime == 0) {
+        // Game over
+        startGame = false;
+        runMotorCycle = true; // Start the motor cycle
+
+    }
+}
+
 
 /*
 ================================================================================
@@ -500,6 +594,8 @@ void setup() {
 
   setupTimer();
   setupStartButton();
+
+  setupEndGame();
 
   startGame = false;
 }
