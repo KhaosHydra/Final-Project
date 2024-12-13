@@ -1,0 +1,13 @@
+(kicad_sch
+	(version 20231120)
+	(generator "eeschema")
+	(generator_version "8.0")
+	(uuid "e95019c3-fbd5-4d84-adb8-2b1c993be79a")
+	(paper "A5")
+	(title_block
+		(title "Physical Computing: Gizmo")
+		(date "2024-12-01")
+		(company "Imperial College London")
+	)
+	(lib_symbols)
+)
